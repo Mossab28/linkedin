@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir)",
+      "Read(//c/Users/Moss''''''''Ab/Downloads/**)",
+      "Bash(npx create-next-app@latest linkboost --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-pnpm)",
+      "Read(//c/Users/MossAb/Downloads/**)",
+      "Bash(ls -R /c/Users/Moss*Downloads/Linkedin/linkboost 2>&1 | head -100)",
+      "WebFetch(domain:raiudvofwcdgvmuwcczj.supabase.co)",
+      "Bash(curl:*)",
+      "Bash(npx next:*)",
+      "Read(//c/Users/Moss%27Ab/Downloads/Linkedin/**)",
+      "Bash(echo \"status: $?\")",
+      "Bash(git:*)"
+    ]
+  }
+}
