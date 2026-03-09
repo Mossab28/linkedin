@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // Build query for JSearch
     let query = keywords;
-    if (location) query += ` in ${location}`;
+    query += ` in ${location || "France"}`;
     if (contractType) {
       const typeMap: Record<string, string> = {
         stage: "internship",
