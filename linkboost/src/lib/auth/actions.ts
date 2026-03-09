@@ -28,14 +28,30 @@ export async function signInWithGoogle() {
   return data;
 }
 
-export async function signInWithMagicLink(email: string) {
+export async function signUpWithEmail(email: string, password: string) {
   const supabase = createClient();
 
-  const { data, error } = await supabase.auth.signInWithOtp({
+  const { data, error } = await supabase.auth.signUp({
     email,
+    password,
     options: {
       emailRedirectTo: getCallbackUrl(),
     },
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  const supabase = createClient();
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
   });
 
   if (error) {

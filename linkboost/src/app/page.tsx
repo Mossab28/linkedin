@@ -126,7 +126,7 @@ export default function LandingPage() {
             className="flex flex-col sm:flex-row items-center gap-4"
           >
             <Button size="lg" asChild>
-              <Link href="/login" className="gap-2">
+              <Link href="/register" className="gap-2">
                 <Sparkles className="h-5 w-5" />
                 Commencer gratuitement
               </Link>
@@ -258,7 +258,7 @@ export default function LandingPage() {
             plus rapidement grace a l'IA.
           </p>
           <Button size="lg" asChild>
-            <Link href="/login" className="gap-2">
+            <Link href="/register" className="gap-2">
               Commencer gratuitement
               <ArrowRight className="h-5 w-5" />
             </Link>

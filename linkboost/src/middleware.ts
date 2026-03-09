@@ -10,7 +10,7 @@ const PROTECTED_ROUTES = [
   "/onboarding",
 ];
 
-const AUTH_ROUTES = ["/login"];
+const AUTH_ROUTES = ["/login", "/register"];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({

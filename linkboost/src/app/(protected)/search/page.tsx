@@ -1,51 +1,82 @@
 "use client";
 
 import * as React from "react";
-import * as Tabs from "@radix-ui/react-tabs";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Briefcase,
-  Users,
-  MessageSquare,
   ExternalLink,
-  Copy,
-  RefreshCw,
   SearchX,
-  Linkedin,
+  MapPin,
+  Clock,
   Plus,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Wifi,
+  DollarSign,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { SearchDialog, type SearchCriteria } from "./search-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface SearchLink {
+interface Job {
   id: string;
-  label: string;
+  title: string;
+  company: string;
+  logo: string | null;
+  location: string;
+  description: string;
   url: string;
-}
-
-interface GeneratedMessage {
-  id: string;
-  type: "Candidature spontanee" | "Approche manager" | "Networking";
-  content: string;
-  loading?: boolean;
+  type: string | null;
+  postedAt: string;
+  salary: string | null;
+  remote: boolean;
 }
 
 interface SearchProfile {
   keywords: string;
   location: string;
-  contract_type: string;
+  contractType: string;
   level: string;
-  date_posted: string;
+  datePosted: string;
   remote: boolean;
-  domain?: string;
-  city?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function timeAgo(dateStr: string): string {
+  if (!dateStr) return "";
+  const now = Date.now();
+  const posted = new Date(dateStr).getTime();
+  const diffMs = now - posted;
+  const diffH = Math.floor(diffMs / 3_600_000);
+  if (diffH < 1) return "A l'instant";
+  if (diffH < 24) return `Il y a ${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD === 1) return "Hier";
+  if (diffD < 7) return `Il y a ${diffD}j`;
+  const diffW = Math.floor(diffD / 7);
+  if (diffW < 5) return `Il y a ${diffW} sem.`;
+  return `Il y a ${Math.floor(diffD / 30)} mois`;
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/[\s&]+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -55,43 +86,22 @@ interface SearchProfile {
 function SkeletonCard({ index }: { index: number }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.08, duration: 0.4 }}
-      className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-5"
+      transition={{ delay: index * 0.06, duration: 0.35 }}
+      className="rounded-2xl border border-zinc-800/70 bg-zinc-950/50 p-5 sm:p-6"
     >
-      <div className="flex items-start gap-4">
-        <div className="h-10 w-10 rounded-lg bg-zinc-800 animate-pulse" />
+      <div className="flex gap-4">
+        <div className="h-12 w-12 rounded-xl bg-zinc-800 animate-pulse shrink-0" />
         <div className="flex-1 space-y-3">
-          <div className="h-4 w-3/4 rounded bg-zinc-800 animate-pulse" />
-          <div className="h-3 w-1/2 rounded bg-zinc-800/60 animate-pulse" />
+          <div className="h-4 w-3/4 rounded-lg bg-zinc-800 animate-pulse" />
+          <div className="h-3 w-1/2 rounded-lg bg-zinc-800/50 animate-pulse" />
+          <div className="h-3 w-full rounded-lg bg-zinc-800/30 animate-pulse" />
           <div className="flex gap-2 pt-1">
-            <div className="h-8 w-32 rounded-lg bg-zinc-800 animate-pulse" />
-            <div className="h-8 w-24 rounded-lg bg-zinc-800/60 animate-pulse" />
+            <div className="h-6 w-16 rounded-full bg-zinc-800/50 animate-pulse" />
+            <div className="h-6 w-20 rounded-full bg-zinc-800/40 animate-pulse" />
           </div>
         </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function MessageSkeleton({ index }: { index: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.08, duration: 0.4 }}
-      className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-5 space-y-3"
-    >
-      <div className="h-5 w-32 rounded bg-zinc-800 animate-pulse" />
-      <div className="space-y-2 rounded-lg bg-zinc-900 p-4">
-        <div className="h-3 w-full rounded bg-zinc-800 animate-pulse" />
-        <div className="h-3 w-5/6 rounded bg-zinc-800/60 animate-pulse" />
-        <div className="h-3 w-4/6 rounded bg-zinc-800/40 animate-pulse" />
-      </div>
-      <div className="flex gap-2">
-        <div className="h-8 w-24 rounded-lg bg-zinc-800 animate-pulse" />
-        <div className="h-8 w-28 rounded-lg bg-zinc-800/60 animate-pulse" />
       </div>
     </motion.div>
   );
@@ -101,190 +111,226 @@ function MessageSkeleton({ index }: { index: number }) {
 // Empty state
 // ---------------------------------------------------------------------------
 
-function EmptyState({
-  onAction,
-  actionLabel,
-  message,
-}: {
-  onAction: () => void;
-  actionLabel: string;
-  message: string;
-}) {
+function EmptyState({ onAction }: { onAction: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center justify-center py-20 text-center"
+      className="flex flex-col items-center justify-center py-24 text-center"
     >
-      <div className="mb-4 rounded-full bg-zinc-800/50 p-4">
+      <div className="mb-5 rounded-2xl bg-zinc-800/40 p-5">
         <SearchX className="h-8 w-8 text-zinc-500" />
       </div>
-      <p className="text-lg font-medium text-zinc-300 mb-1">Aucun resultat</p>
-      <p className="text-sm text-zinc-500 mb-6 max-w-sm">{message}</p>
+      <p className="text-lg font-semibold text-zinc-200 mb-1">Aucune offre trouvee</p>
+      <p className="text-sm text-zinc-500 mb-6 max-w-sm">
+        Essaie d'autres mots-cles ou elargis ta zone geographique.
+      </p>
       <Button variant="secondary" size="sm" onClick={onAction}>
-        {actionLabel}
+        Modifier mes criteres
       </Button>
     </motion.div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Link card
+// Job card
 // ---------------------------------------------------------------------------
 
-function LinkCard({ link, index }: { link: SearchLink; index: number }) {
-  async function handleCopy() {
-    await navigator.clipboard.writeText(link.url);
-    toast.success("Lien copie dans le presse-papiers");
-  }
-
+function JobCard({ job, index }: { job: Job; index: number }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06, duration: 0.35 }}
+      transition={{ delay: index * 0.05, duration: 0.35, ease: "easeOut" }}
+      className="group"
     >
-      <Card className="p-5 hover:border-violet-500/30 transition-all duration-300">
-        <div className="flex items-start gap-4">
-          {/* Icon */}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10">
-            <Linkedin className="h-5 w-5 text-violet-400" />
+      <div
+        className={cn(
+          "relative rounded-2xl border border-zinc-800/70 bg-zinc-950/50 p-5 sm:p-6",
+          "transition-all duration-300 ease-out",
+          "hover:border-violet-500/30 hover:bg-zinc-950/80",
+          "hover:shadow-lg hover:shadow-violet-500/[0.03]"
+        )}
+      >
+        <div className="flex gap-4">
+          {/* Company logo */}
+          <div className="shrink-0">
+            {job.logo ? (
+              <img
+                src={job.logo}
+                alt={job.company}
+                className="h-12 w-12 rounded-xl object-contain bg-white p-1.5 ring-1 ring-zinc-800/50"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                  (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
+                }}
+              />
+            ) : null}
+            <div
+              className={cn(
+                "h-12 w-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-blue-500/20 ring-1 ring-violet-500/20",
+                "flex items-center justify-center text-sm font-bold text-violet-300",
+                job.logo ? "hidden" : ""
+              )}
+            >
+              {getInitials(job.company)}
+            </div>
           </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-medium text-white truncate mb-3">
-              {link.label}
+            {/* Title + company */}
+            <h3 className="text-[15px] font-semibold text-white leading-snug mb-0.5 line-clamp-1">
+              {job.title}
             </h3>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => window.open(link.url, "_blank")}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Ouvrir sur LinkedIn
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleCopy}>
-                <Copy className="h-3.5 w-3.5" />
-                Copier
-              </Button>
+            <div className="flex items-center gap-2 text-sm text-zinc-400 mb-2">
+              <Building2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+              <span className="truncate">{job.company}</span>
             </div>
+
+            {/* Description snippet */}
+            <p className="text-sm text-zinc-500 leading-relaxed mb-3 line-clamp-2">
+              {job.description}
+            </p>
+
+            {/* Meta badges */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {job.location && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border bg-emerald-500/8 text-emerald-400 border-emerald-500/15">
+                  <MapPin className="h-3 w-3" />
+                  {job.location}
+                </span>
+              )}
+              {job.type && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border bg-violet-500/8 text-violet-400 border-violet-500/15">
+                  <Briefcase className="h-3 w-3" />
+                  {job.type}
+                </span>
+              )}
+              {job.remote && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border bg-blue-500/8 text-blue-400 border-blue-500/15">
+                  <Wifi className="h-3 w-3" />
+                  Remote
+                </span>
+              )}
+              {job.salary && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border bg-amber-500/8 text-amber-400 border-amber-500/15">
+                  <DollarSign className="h-3 w-3" />
+                  {job.salary}
+                </span>
+              )}
+              {job.postedAt && (
+                <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                  <Clock className="h-3 w-3" />
+                  {timeAgo(job.postedAt)}
+                </span>
+              )}
+            </div>
+
+            {/* Actions */}
+            <button
+              onClick={() => window.open(job.url, "_blank")}
+              className={cn(
+                "inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium",
+                "text-white bg-violet-600 hover:bg-violet-500 active:bg-violet-700",
+                "transition-all duration-200 active:scale-[0.97]"
+              )}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Postuler
+            </button>
           </div>
         </div>
-      </Card>
+      </div>
     </motion.div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Message card
+// Pagination
 // ---------------------------------------------------------------------------
 
-function MessageCard({
-  message,
-  index,
-  onRegenerate,
+function Pagination({
+  page,
+  totalPages,
+  onPageChange,
 }: {
-  message: GeneratedMessage;
-  index: number;
-  onRegenerate: (id: string) => void;
+  page: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
 }) {
-  async function handleCopy() {
-    await navigator.clipboard.writeText(message.content);
-    toast.success("Message copie !");
-  }
+  if (totalPages <= 1) return null;
 
-  const badgeVariant =
-    message.type === "Candidature spontanee"
-      ? "accent"
-      : message.type === "Approche manager"
-      ? "success"
-      : "warning";
+  const maxVisible = 5;
+  const half = Math.floor(maxVisible / 2);
+  let start = Math.max(1, page - half);
+  const end = Math.min(totalPages, start + maxVisible - 1);
+  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+
+  const pages: number[] = [];
+  for (let i = start; i <= end; i++) pages.push(i);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.08, duration: 0.35 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex items-center justify-center gap-1.5 pt-8 pb-4"
     >
-      <Card className="p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Badge variant={badgeVariant}>{message.type}</Badge>
-        </div>
+      <button
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 1}
+        className="h-9 w-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
 
-        {message.loading ? (
-          <div className="space-y-2 rounded-lg bg-zinc-900 p-4">
-            <div className="h-3 w-full rounded bg-zinc-800 animate-pulse" />
-            <div className="h-3 w-5/6 rounded bg-zinc-800/60 animate-pulse" />
-            <div className="h-3 w-3/6 rounded bg-zinc-800/40 animate-pulse" />
-          </div>
-        ) : (
-          <div className="rounded-lg bg-zinc-900 p-4 mb-3">
-            <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
-              {message.content}
-            </p>
-          </div>
-        )}
+      {start > 1 && (
+        <>
+          <button
+            onClick={() => onPageChange(1)}
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+          >
+            1
+          </button>
+          {start > 2 && <span className="text-zinc-600 text-sm px-1">...</span>}
+        </>
+      )}
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleCopy}
-            disabled={message.loading}
+      {pages.map((p) => (
+        <button
+          key={p}
+          onClick={() => onPageChange(p)}
+          className={cn(
+            "h-9 w-9 rounded-lg flex items-center justify-center text-sm font-medium transition-colors",
+            p === page
+              ? "bg-violet-600 text-white"
+              : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+          )}
+        >
+          {p}
+        </button>
+      ))}
+
+      {end < totalPages && (
+        <>
+          {end < totalPages - 1 && <span className="text-zinc-600 text-sm px-1">...</span>}
+          <button
+            onClick={() => onPageChange(totalPages)}
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
           >
-            <Copy className="h-3.5 w-3.5" />
-            Copier
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onRegenerate(message.id)}
-            disabled={message.loading}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Regenerer
-          </Button>
-        </div>
-      </Card>
+            {totalPages}
+          </button>
+        </>
+      )}
+
+      <button
+        onClick={() => onPageChange(page + 1)}
+        disabled={page >= totalPages}
+        className="h-9 w-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
     </motion.div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Tab trigger
-// ---------------------------------------------------------------------------
-
-function TabTrigger({
-  value,
-  icon: Icon,
-  label,
-  count,
-}: {
-  value: string;
-  icon: React.ElementType;
-  label: string;
-  count?: number;
-}) {
-  return (
-    <Tabs.Trigger
-      value={value}
-      className={cn(
-        "group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors rounded-lg",
-        "text-zinc-500 hover:text-zinc-300",
-        "data-[state=active]:bg-violet-500/10 data-[state=active]:text-violet-400"
-      )}
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-      {count !== undefined && (
-        <span className="ml-1 text-xs text-zinc-600 group-data-[state=active]:text-violet-500">
-          {count}
-        </span>
-      )}
-    </Tabs.Trigger>
   );
 }
 
@@ -293,38 +339,86 @@ function TabTrigger({
 // ---------------------------------------------------------------------------
 
 export default function SearchPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <SearchPageInner />
+    </React.Suspense>
+  );
+}
+
+function SearchPageInner() {
   const [loading, setLoading] = React.useState(true);
   const [searchLoading, setSearchLoading] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [offers, setOffers] = React.useState<SearchLink[]>([]);
-  const [contacts, setContacts] = React.useState<SearchLink[]>([]);
-  const [messages, setMessages] = React.useState<GeneratedMessage[]>([]);
+  const [jobs, setJobs] = React.useState<Job[]>([]);
+  const [total, setTotal] = React.useState(0);
+  const [page, setPage] = React.useState(1);
+  const [totalPages, setTotalPages] = React.useState(1);
   const [profile, setProfile] = React.useState<SearchProfile | null>(null);
-  const [activeTab, setActiveTab] = React.useState("offers");
+  const [error, setError] = React.useState("");
 
-  // ---- On mount, just stop loading and show empty state ----
+  const searchParams = useSearchParams();
+
+  // ---- On mount, auto-search if URL has query params ----
   React.useEffect(() => {
-    setLoading(false);
+    const q = searchParams.get("q");
+    if (!q) {
+      setLoading(false);
+      return;
+    }
+
+    const loc = searchParams.get("loc") || "";
+    const type = searchParams.get("type") || "";
+
+    const criteria: SearchCriteria = {
+      keywords: q,
+      location: loc,
+      contractType: type,
+      level: "",
+      datePosted: "",
+      remote: false,
+    };
+
+    setProfile(criteria);
+
+    (async () => {
+      await fetchResults(criteria, 1);
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- Fetch results from API ----
-  async function fetchResults(criteria: SearchCriteria) {
+  async function fetchResults(criteria: SearchCriteria, pg: number) {
+    setError("");
     try {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(criteria),
+        body: JSON.stringify({ ...criteria, page: pg }),
       });
-
-      if (!res.ok) throw new Error("Search API error");
 
       const data = await res.json();
 
-      setOffers(data.offers ?? []);
-      setContacts(data.contacts ?? []);
-      setMessages(data.messages ?? []);
+      if (!res.ok) {
+        setError(data.error || "Erreur lors de la recherche");
+        setJobs([]);
+        return;
+      }
+
+      setJobs(data.jobs ?? []);
+      setTotal(data.total ?? 0);
+      setPage(data.page ?? 1);
+      setTotalPages(data.totalPages ?? 1);
     } catch (err) {
       console.error("Search error:", err);
+      setError("Erreur reseau");
       toast.error("Erreur lors de la recherche");
     }
   }
@@ -334,70 +428,26 @@ export default function SearchPage() {
     setSearchLoading(true);
     setLoading(true);
     setDialogOpen(false);
+    setProfile(criteria);
+    setPage(1);
 
-    await fetchResults(criteria);
-
-    setProfile({
-      keywords: criteria.keywords,
-      location: criteria.location,
-      contract_type: criteria.contractType,
-      level: criteria.level,
-      date_posted: criteria.datePosted,
-      remote: criteria.remote,
-      domain: criteria.keywords,
-      city: criteria.location,
-    });
+    await fetchResults(criteria, 1);
 
     setSearchLoading(false);
     setLoading(false);
   }
 
-  // ---- Regenerate a message ----
-  async function handleRegenerate(id: string) {
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, loading: true } : m))
-    );
-
-    try {
-      const res = await fetch("/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          regenerateMessageId: id,
-          keywords: profile?.keywords ?? "",
-          location: profile?.location ?? "",
-        }),
-      });
-
-      if (!res.ok) throw new Error("Regenerate error");
-
-      const data = await res.json();
-      const newMsg = data.message;
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id
-            ? { ...m, content: newMsg?.content ?? m.content, loading: false }
-            : m
-        )
-      );
-
-      toast.success("Message regenere");
-    } catch {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, loading: false } : m))
-      );
-      toast.error("Erreur lors de la regeneration");
-    }
+  // ---- Handle page change ----
+  async function handlePageChange(newPage: number) {
+    if (!profile || newPage === page) return;
+    setLoading(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    await fetchResults(profile, newPage);
+    setLoading(false);
   }
 
-  // ---- Computed ----
-  const totalLinks = offers.length + contacts.length;
-  const domain = profile?.domain || profile?.keywords || "votre domaine";
-  const city = profile?.city || profile?.location || "votre ville";
-
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-3xl mx-auto">
       {/* ---- Header ---- */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -405,11 +455,18 @@ export default function SearchPage() {
         className="flex items-start justify-between mb-8"
       >
         <div>
-          <h1 className="text-2xl font-bold text-white">Resultats</h1>
+          <div className="flex items-center gap-2.5 mb-1">
+            <Sparkles className="h-5 w-5 text-violet-400" />
+            <h1 className="text-2xl font-bold text-white">Offres</h1>
+          </div>
           <p className="text-sm text-zinc-400 mt-1">
             {loading
-              ? "Chargement..."
-              : `${totalLinks} liens generes pour ${domain} a ${city}`}
+              ? "Recherche en cours..."
+              : error
+              ? error
+              : total > 0
+              ? `${total.toLocaleString("fr-FR")} resultats${profile?.keywords ? ` pour "${profile.keywords}"` : ""}${profile?.location ? ` a ${profile.location}` : ""}`
+              : "Lance une recherche pour voir les offres"}
           </p>
         </div>
         <Button
@@ -422,148 +479,59 @@ export default function SearchPage() {
         </Button>
       </motion.div>
 
-      {/* ---- Tabs ---- */}
-      <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-        <Tabs.List className="flex items-center gap-1 mb-6 p-1 bg-zinc-900/50 rounded-xl border border-zinc-800 w-fit">
-          <TabTrigger
-            value="offers"
-            icon={Briefcase}
-            label="Offres"
-            count={offers.length}
-          />
-          <TabTrigger
-            value="contacts"
-            icon={Users}
-            label="Contacts"
-            count={contacts.length}
-          />
-          <TabTrigger
-            value="messages"
-            icon={MessageSquare}
-            label="Messages"
-            count={messages.length}
-          />
-        </Tabs.List>
+      {/* ---- Results ---- */}
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div
+            key="loading"
+            className="space-y-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonCard key={i} index={i} />
+            ))}
+          </motion.div>
+        ) : error && jobs.length === 0 ? (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-24 text-center"
+          >
+            <div className="mb-5 rounded-2xl bg-red-500/10 p-5">
+              <SearchX className="h-8 w-8 text-red-400" />
+            </div>
+            <p className="text-lg font-semibold text-zinc-200 mb-1">Erreur</p>
+            <p className="text-sm text-zinc-500 mb-6 max-w-sm">{error}</p>
+            <Button variant="secondary" size="sm" onClick={() => setDialogOpen(true)}>
+              Reessayer
+            </Button>
+          </motion.div>
+        ) : jobs.length === 0 ? (
+          <EmptyState key="empty" onAction={() => setDialogOpen(true)} />
+        ) : (
+          <motion.div
+            key="results"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="space-y-4">
+              {jobs.map((job, i) => (
+                <JobCard key={job.id} job={job} index={i} />
+              ))}
+            </div>
 
-        {/* ---- Offers ---- */}
-        <Tabs.Content value="offers">
-          <AnimatePresence mode="wait">
-            {loading ? (
-              <motion.div
-                key="loading"
-                className="space-y-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <SkeletonCard key={i} index={i} />
-                ))}
-              </motion.div>
-            ) : offers.length === 0 ? (
-              <EmptyState
-                key="empty"
-                message="Aucune offre trouvee. Modifiez vos criteres pour elargir la recherche."
-                actionLabel="Modifier mes criteres"
-                onAction={() => setDialogOpen(true)}
-              />
-            ) : (
-              <motion.div
-                key="results"
-                className="space-y-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                {offers.map((link, i) => (
-                  <LinkCard key={link.id} link={link} index={i} />
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Tabs.Content>
-
-        {/* ---- Contacts ---- */}
-        <Tabs.Content value="contacts">
-          <AnimatePresence mode="wait">
-            {loading ? (
-              <motion.div
-                key="loading"
-                className="space-y-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <SkeletonCard key={i} index={i} />
-                ))}
-              </motion.div>
-            ) : contacts.length === 0 ? (
-              <EmptyState
-                key="empty"
-                message="Aucun contact trouve. Essayez d'autres mots-cles ou localisation."
-                actionLabel="Modifier mes criteres"
-                onAction={() => setDialogOpen(true)}
-              />
-            ) : (
-              <motion.div
-                key="results"
-                className="space-y-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                {contacts.map((link, i) => (
-                  <LinkCard key={link.id} link={link} index={i} />
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Tabs.Content>
-
-        {/* ---- Messages ---- */}
-        <Tabs.Content value="messages">
-          <AnimatePresence mode="wait">
-            {loading ? (
-              <motion.div
-                key="loading"
-                className="space-y-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <MessageSkeleton key={i} index={i} />
-                ))}
-              </motion.div>
-            ) : messages.length === 0 ? (
-              <EmptyState
-                key="empty"
-                message="Aucun message genere. Lancez une recherche pour obtenir des messages personnalises."
-                actionLabel="Modifier mes criteres"
-                onAction={() => setDialogOpen(true)}
-              />
-            ) : (
-              <motion.div
-                key="results"
-                className="space-y-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                {messages.map((msg, i) => (
-                  <MessageCard
-                    key={msg.id}
-                    message={msg}
-                    index={i}
-                    onRegenerate={handleRegenerate}
-                  />
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Tabs.Content>
-      </Tabs.Root>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ---- Search Dialog ---- */}
       <AnimatePresence>
@@ -573,18 +541,7 @@ export default function SearchPage() {
             onOpenChange={setDialogOpen}
             onSearch={handleSearch}
             loading={searchLoading}
-            defaultValues={
-              profile
-                ? {
-                    keywords: profile.keywords,
-                    location: profile.location,
-                    contractType: profile.contract_type,
-                    level: profile.level,
-                    datePosted: profile.date_posted,
-                    remote: profile.remote,
-                  }
-                : undefined
-            }
+            defaultValues={profile ? profile : undefined}
           />
         )}
       </AnimatePresence>

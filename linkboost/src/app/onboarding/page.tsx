@@ -67,6 +67,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [data, setData] = useState<OnboardingData>({
     searchType: "",
     domains: [],
@@ -107,16 +108,29 @@ export default function OnboardingPage() {
 
     if (step === TOTAL_STEPS) {
       setSubmitting(true);
+      setSubmitError("");
       try {
         const res = await fetch("/api/onboarding", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
         });
-        if (!res.ok) throw new Error("Erreur onboarding");
-        router.push("/search");
-      } catch {
-        console.error("Erreur lors de la sauvegarde");
+        const json = await res.json();
+        if (!res.ok) {
+          setSubmitError(json?.error || "Erreur lors de la sauvegarde");
+          console.error("Onboarding error:", json);
+          return;
+        }
+        const params = new URLSearchParams();
+        params.set("q", data.domains.join(", "));
+        if (data.location === "city" && data.locationCity) {
+          params.set("loc", data.locationCity);
+        }
+        params.set("type", data.searchType);
+        router.push("/search?" + params.toString());
+      } catch (err) {
+        console.error("Onboarding error:", err);
+        setSubmitError("Erreur reseau. Verifie ta connexion et reessaie.");
       } finally {
         setSubmitting(false);
       }
@@ -191,6 +205,9 @@ export default function OnboardingPage() {
 
       {/* Footer Navigation */}
       <div className="w-full max-w-lg mx-auto px-6 pb-8">
+        {submitError && (
+          <p className="text-sm text-red-400 text-center mb-3">{submitError}</p>
+        )}
         <div className="flex items-center justify-between gap-4">
           {step > 1 ? (
             <button
